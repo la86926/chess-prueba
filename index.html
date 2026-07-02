@@ -653,8 +653,8 @@ footer a{color:var(--muted)}
 .mate-badge{position:absolute;top:2%;right:2%;width:34%;height:34%;
   background:var(--crest);border-radius:50%;display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 6px #000a;z-index:5;pointer-events:none}
-.mate-badge svg{width:70%;height:70%;stroke:#fff;fill:none;stroke-width:2.5;
-  stroke-linecap:round;stroke-linejoin:round}
+.mate-badge span{color:#fff;font-size:1.05rem;line-height:1;
+  transform:rotate(90deg);display:block}
 
 
 
@@ -3490,7 +3490,6 @@ function tryMove(from,to){
     const mv=moverYRegistrar({from,to,promotion:'q'});
     if(mv){
       if(mv.captured) sndCapture(); else sndMove();
-      avisarSiMate();
 
 
 
@@ -3503,6 +3502,8 @@ function tryMove(from,to){
         state.anaPtr=state.anaMoves.length;
       }
       renderBoard();
+      renderMoves();
+      avisarSiMate();
     }
     return;
   }
@@ -3673,14 +3674,27 @@ function setStatus(kind,msg){
 
 
 /* ---------- lista de jugadas ---------- */
-// Convierte letras inglesas (K,Q,R,B,N) en figuritas de ajedrez
+// Convierte letras inglesas en figuritas estilo lichess (glifos sólidos, forzados como texto)
 function figurina(san){
-  return san.replace(/K/g,'♔').replace(/Q/g,'♕').replace(/R/g,'♖')
-            .replace(/B/g,'♗').replace(/N/g,'♘');
+  const f={K:'\u265A\uFE0E',Q:'\u265B\uFE0E',R:'\u265C\uFE0E',B:'\u265D\uFE0E',N:'\u265E\uFE0E'};
+  return san.replace(/[KQRBN]/g,m=>f[m]);
 }
+  
 function renderMoves(){
   const ml=$('movelist');
+  // En modo libre (Editar/importado/resuelto) muestro la línea real jugada, con figuritas
+  if(state.freemode && state.anaMoves && state.anaMoves.length){
+    let html='',num=1;
+    for(let k=0;k<state.anaMoves.length;k++){
+      const m=state.anaMoves[k];
+      if(m.color==='w'){ html+='<span class="num">'+num+'.</span>'; num++; }
+      else if(k===0){ html+='<span class="num">1...</span>'; num=2; }
+      html+='<span class="ply u'+(k===state.anaPtr-1?' now':'')+'">'+figurina(m.san)+'</span> ';
+    }
+    ml.innerHTML=html; return;
+  }
   if(!state.san.length){ml.innerHTML='<span style="color:var(--muted2)">'+(state.freemode?'Modo de exploración libre.':'Sin línea registrada.')+'</span>';return;}
+  
   let html='', startWhite=(state.orient==='w');
   // numeración: primer ply lo juega el lado a mover
   for(let k=0;k<state.san.length;k++){
@@ -3915,7 +3929,7 @@ function marcarReyMate(){
       if(celda && !celda.querySelector('.mate-badge')){
         const ins=document.createElement('span');
         ins.className='mate-badge';
-        ins.innerHTML='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        ins.innerHTML='<span>\u265A\uFE0E</span>';
         celda.appendChild(ins);
       }
     }
@@ -3978,6 +3992,8 @@ function irAJugada(ptr){
   state.lastMove = ptr>0 ? {from:state.anaMoves[ptr-1].from,to:state.anaMoves[ptr-1].to} : null;
   state.sel=null;
   renderBoard();
+  renderMoves();
+  marcarReyMate();
 }
 
 // NUEVO: los 4 botones |◂ ◂ ▸ ▸|
