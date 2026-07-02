@@ -3448,6 +3448,9 @@ function tryMove(from,to){
   if(state.freemode){ // exploración libre: cualquier jugada legal
     const mv=moverYRegistrar({from,to,promotion:'q'});
     if(mv){
+      if(mv.captured) sndCapture(); else sndMove();   // % NUEVO: sonido también en exploración libre
+
+      
       // NUEVO: registro la jugada; si muevo en medio de la línea, abro variante nueva (trunco lo que había después)
       if(state.anaMoves){
         state.anaMoves=state.anaMoves.slice(0,state.anaPtr);
@@ -4027,9 +4030,15 @@ function mostrarPartidaImportada(partida,tipo){
   $('ref-full').textContent='Archivo '+tipo+' cargado correctamente.';
   $('expl').open=false;
 
+  // % NUEVO: habilito el navegador de jugadas con la partida importada
+  state.anaMoves=partida.history({verbose:true});
+  state.anaPtr=state.anaMoves.length;
+  mostrarBarraAnalisis(state.anaMoves.length>0);   // solo si trae jugadas (un FEN suelto no tiene)
   renderBoard();
   renderMoves();
-  setStatus('free',tipo+' importado correctamente. Puedes explorar la posición.');
+  setStatus('free',tipo+' importado correctamente.');
+
+  
 }
 
 
