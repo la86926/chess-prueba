@@ -4486,26 +4486,27 @@ function beep(freq,dur,vol,tipo){
   }catch(e){}
 }
   
-// % NUEVO: "toc" de madera (golpe percusivo con caída rápida, estilo chess.com)
-function toc(freqIni,freqFin,dur,vol){
+// % NUEVO: sonidos reales de madera (archivos de Lichess, código abierto)
+const AUDIOS={
+  move:    new Audio('Move.mp3'),
+  capture: new Audio('Capture.mp3'),
+  error:   new Audio('Error.mp3')
+};
+function play(nombre){
   if(!soundOn) return;
   try{
-    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    const t=audioCtx.currentTime;
-    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.type='triangle';
-    o.frequency.setValueAtTime(freqIni,t);
-    o.frequency.exponentialRampToValueAtTime(freqFin,t+dur);   // el tono cae: suena a golpe, no a nota
-    g.gain.setValueAtTime(vol,t);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(t); o.stop(t+dur);
+    const a=AUDIOS[nombre];
+    a.currentTime=0;   // permite sonar de nuevo aunque no haya terminado
+    a.play();
   }catch(e){}
 }
-function sndMove(){ toc(340,120,.07,.5); }                                        // toc seco
-function sndCapture(){ toc(260,80,.09,.6); }                                      // toc más grave (captura)
-function sndError(){ toc(140,60,.13,.45); setTimeout(()=>toc(120,55,.13,.4),90);} // doble golpe grave
-function sndSolved(){ toc(400,200,.07,.45); setTimeout(()=>toc(600,300,.09,.45),100); } // dos tocs ascendentes
+function sndMove(){ play('move'); }
+function sndCapture(){ play('capture'); }
+function sndError(){ play('error'); }
+function sndSolved(){ play('move'); setTimeout(()=>play('capture'),140); }
+
+
+  
 
 
   
