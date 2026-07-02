@@ -629,6 +629,24 @@ footer a{color:var(--muted)}
 .hist-x:hover{color:var(--crest);background:#cf4d2e18}
 
 
+
+
+
+
+
+
+
+
+  /* % NUEVO: confeti */
+.confeti{position:fixed;top:-12px;width:9px;height:14px;z-index:300;pointer-events:none;
+  animation:caer linear forwards}
+@keyframes caer{
+  to{transform:translateY(105vh) rotate(720deg);opacity:.9}
+}
+
+
+
+  
 </style>
 </head>
 <body>
@@ -831,6 +849,7 @@ footer a{color:var(--muted)}
   <button class="btn" id="b-import">Importar PGN/FEN</button>
   <button class="btn" id="b-clear">Borrar</button>
   <button class="btn" id="b-hist-open">Historial</button>
+  <button class="btn" id="b-tarjeta">🏆 Compartir logro</button>   <!-- % NUEVO -->
 </div>
     </div>
     
@@ -958,8 +977,27 @@ footer a{color:var(--muted)}
       <h3>Historial de resueltos</h3>
       <button class="modal-x" id="b-hist-close" aria-label="Cerrar">✕</button>
     </div>
+    
+
+
+
+
     <div class="hist-list" id="hist-list"></div>
+    <!-- % NUEVO: gráfica de actividad -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.9rem">
+      <h3 style="margin:0;font-family:var(--serif);font-size:.95rem">Actividad</h3>
+      <div class="tabs" style="padding:2px">
+        <button class="tab active" id="g-sem">Semanas</button>
+        <button class="tab" id="g-dia">Días</button>
+      </div>
+    </div>
+    <div id="grafica" style="display:flex;align-items:flex-end;gap:4px;height:90px;margin-top:.6rem"></div>
     <div class="prog-actions" style="margin-top:.8rem">
+
+
+
+
+      
       <button class="btn" id="b-hist-reset" style="flex:1">Resetear historial</button>
       <button class="btn" id="b-hist-recover" style="flex:1">Recuperar historial</button>
     </div>
@@ -3139,7 +3177,9 @@ function load(p){
   
   
 mostrarBarraAnalisis(false);   // NUEVO: oculto el botón Deshacer al (re)cargar el ejercicio
+  try{ localStorage.setItem('wp_ultimo', p.n); }catch(e){}   // % NUEVO: recuerdo en qué ejercicio estoy
   renderHead(p); renderBoard(); renderMoves(); renderRef(p);
+  
   setStatus(state.freemode?'free':'idle');
 }
 
@@ -3312,7 +3352,10 @@ boardEl.addEventListener('pointerdown',e=>{
   
   
   
-  if(canSelect(sq)){ state.sel=sq; showDests(sq); }   // CAMBIO: sin arrastre, solo clic-clic
+  if(canSelect(sq)){
+    state.sel=sq; showDests(sq);
+    if(window.matchMedia('(pointer:fine)').matches){ startDrag(e,sq); }   // % NUEVO: con mouse (PC) también permite arrastrar; en táctil no
+  }
   else { state.sel=null; clearMarks(); paintLast(); }
   
   
@@ -3464,7 +3507,8 @@ function tryMove(from,to){
 function flash(sq,cls){const c=cellOf(sq);if(!c)return;c.classList.add(cls);
   if(cls!=='last')setTimeout(()=>c.classList.remove(cls),420);}
 function onSolved(){
-  sndSolved();   // % NUEVO
+  sndSolved();
+  lanzarConfeti(lastStreak>0 && (lastStreak+1)%10===0 ? 120 : 45);   // % NUEVO: lluvia normal; explosión cada 10 seguidos
   
   
   
@@ -3840,6 +3884,56 @@ $('b-share').onclick=compartirTablero;
 
 
 
+
+
+
+
+
+
+
+  /* % NUEVO: tarjeta de logro para WhatsApp */
+async function compartirLogro(){
+  try{
+    const W=1080,H=1080;
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    const ctx=cv.getContext('2d');
+    // fondo con degradado del tema
+    const gr=ctx.createLinearGradient(0,0,W,H);
+    gr.addColorStop(0,'#2c352f'); gr.addColorStop(1,'#1b211e');
+    ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+    // marco dorado
+    ctx.strokeStyle='#d9a441'; ctx.lineWidth=6; ctx.strokeRect(40,40,W-80,H-80);
+    // contenido
+    ctx.textAlign='center';
+    ctx.font='120px serif'; ctx.fillText('🏆',W/2,260);
+    ctx.fillStyle='#ece6d8'; ctx.font='600 64px Georgia';
+    ctx.fillText('El Método Pájaro Carpintero',W/2,390);
+    ctx.fillStyle='#d9a441'; ctx.font='700 150px Georgia';
+    ctx.fillText(solved.size,W/2,590);
+    ctx.fillStyle='#ece6d8'; ctx.font='500 52px Georgia';
+    ctx.fillText('ejercicios tácticos resueltos',W/2,670);
+    ctx.fillStyle='#98a39a'; ctx.font='40px Georgia';
+    ctx.fillText(Math.round(solved.size/PUZZLES.length*100)+'% del libro · racha actual: '+lastStreak,W/2,760);
+    ctx.fillStyle='#cf4d2e'; ctx.font='italic 42px Georgia';
+    ctx.fillText('«Un error enseña más que cien victorias.»',W/2,900);
+    const blob=await new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('sin blob')),'image/png'));
+    const archivo=new File([blob],'logro-woodpecker.png',{type:'image/png'});
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[archivo]}))){
+      await navigator.share({files:[archivo],title:'Mi progreso',text:'Mi progreso en El Método Pájaro Carpintero ♟️'});
+    }else{
+      descargarBlob(blob,'logro-woodpecker.png');
+      setStatus('ok','Tarjeta descargada, lista para compartir.');
+    }
+  }catch(err){
+    if(err && err.name==='AbortError')return;
+    console.error(err); setStatus('no','No pude generar la tarjeta.');
+  }
+}
+$('b-tarjeta').onclick=compartirLogro;
+
+
+
+  
 
 
 
@@ -4392,9 +4486,50 @@ if(b.id==='b-hist-close'){
 
 
 
-// NUEVO: abrir la ventana del historial
-$('b-hist-open').onclick=()=>{ renderHistorial(); $('hist-modal').classList.add('open'); };
 
+  /* % NUEVO: gráfica de actividad (últimas 8 semanas o últimos 7 días) */
+let graficaModo='sem';
+function renderGrafica(){
+  const g=$('grafica'); if(!g)return;
+  const DIA=86400000, hoy=new Date(); hoy.setHours(0,0,0,0);
+  const barras=[];
+  if(graficaModo==='sem'){
+    for(let s=7;s>=0;s--){   // 8 semanas, la actual al final
+      const fin=hoy.getTime()-((s*7)-1)*DIA+DIA, ini=fin-7*DIA;
+      const n=histLog.filter(e=>e.t>=ini && e.t<fin).length;
+      const d=new Date(ini);
+      barras.push({n, lbl:(d.getDate())+'/'+(d.getMonth()+1)});
+    }
+  }else{
+    const dias=['dom','lun','mar','mié','jue','vie','sáb'];
+    for(let s=6;s>=0;s--){   // últimos 7 días, hoy al final
+      const ini=hoy.getTime()-s*DIA, fin=ini+DIA;
+      const n=histLog.filter(e=>e.t>=ini && e.t<fin).length;
+      barras.push({n, lbl:dias[new Date(ini).getDay()]});
+    }
+  }
+  const max=Math.max(1,...barras.map(b=>b.n));
+  g.innerHTML=barras.map(b=>
+    '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
+    +'<span style="font-size:.62rem;color:var(--muted)">'+(b.n||'')+'</span>'
+    +'<div style="width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--gold),var(--crest));'
+    +'height:'+Math.max(3,Math.round(b.n/max*58))+'px;opacity:'+(b.n?1:.18)+'"></div>'
+    +'<span style="font-size:.58rem;color:var(--muted2)">'+b.lbl+'</span></div>'
+  ).join('');
+}
+$('g-sem').onclick=()=>{graficaModo='sem';$('g-sem').classList.add('active');$('g-dia').classList.remove('active');renderGrafica();};
+$('g-dia').onclick=()=>{graficaModo='dia';$('g-dia').classList.add('active');$('g-sem').classList.remove('active');renderGrafica();};
+
+
+
+
+  
+
+// NUEVO: abrir la ventana del historial
+$('b-hist-open').onclick=()=>{ renderHistorial(); renderGrafica(); $('hist-modal').classList.add('open'); };   // % CAMBIO
+
+
+  
 // NUEVO: abrir / cerrar el regalo (dedicatoria)
 $('b-gift').onclick=()=>{ $('gift-modal').classList.add('open'); };
 $('gift-modal').addEventListener('click',e=>{
@@ -4509,6 +4644,34 @@ function sndSolved(){ play('move'); setTimeout(()=>play('capture'),140); }
   
 
 
+
+
+
+  /* % NUEVO: lluvia de confeti al resolver */
+function lanzarConfeti(cantidad){
+  const colores=['#cf4d2e','#d9a441','#74a36a','#eeeed2','#70d6ff'];
+  for(let i=0;i<cantidad;i++){
+    const c=document.createElement('div');
+    c.className='confeti';
+    c.style.left=Math.random()*100+'vw';
+    c.style.background=colores[Math.floor(Math.random()*colores.length)];
+    c.style.animationDuration=(1.6+Math.random()*1.4)+'s';
+    c.style.animationDelay=(Math.random()*.4)+'s';
+    c.style.transform='rotate('+Math.random()*360+'deg)';
+    if(Math.random()<.4)c.style.borderRadius='50%';
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(),3600);   // se limpia solo
+  }
+}
+
+
+
+
+
+
+
+  
+
   
 
 $('b-sound').onclick=()=>{
@@ -4545,16 +4708,19 @@ $('random-modal').addEventListener('click',e=>{
 /* ---------- init ---------- */
 buildList();
 if(navigator.storage && navigator.storage.persist){ navigator.storage.persist(); }
-// % NUEVO: bloqueo total de zoom por gestos (Safari/iOS ignora el meta viewport)
 document.addEventListener('gesturestart', e=>e.preventDefault());
 document.addEventListener('dblclick', e=>e.preventDefault());
-
-
-
-
-
 $('c-all').textContent = PUZZLES.length;
+// % NUEVO: retomo el último ejercicio guardado; si no hay, empiezo en el 1
+const ultimo=parseInt(localStorage.getItem('wp_ultimo'),10);
+const idxU=ultimo?state.list.findIndex(p=>p.n===ultimo):-1;
+if(idxU>=0){ state.i=idxU; }
 load(curr());
+
+
+
+
+  
 renderProgress();
 
 // expose global
