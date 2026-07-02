@@ -4215,6 +4215,21 @@ async function compartirTablero(){
   try{
    const blob=await crearBlobTableroCompartible();
     const nombre='woodpecker-ejercicio-'+curr().n+'.png';   // CAMBIO
+    // % NUEVO: dentro del APK, guardo la imagen en la galería con el puente
+    if(window.PuenteAndroid && PuenteAndroid.guardarImagen){
+      const lector=new FileReader();
+      lector.onload=()=>{
+        const b64=String(lector.result).split(',')[1];
+        PuenteAndroid.guardarImagen(b64,nombre);
+        setStatus('ok','Imagen guardada.');
+      };
+      lector.readAsDataURL(blob);
+      return;
+    }
+
+
+
+    
     const archivo=new File([blob],nombre,{type:'image/png'});
 
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[archivo]}))){
