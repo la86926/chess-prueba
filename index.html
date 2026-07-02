@@ -4576,7 +4576,10 @@ $('hist-list').onclick=e=>{
 
 
 /* pestañas */
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{   // % CAMBIO: solo las pestañas de la barra superior, no las de la gráfica
+
+
+  
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');
