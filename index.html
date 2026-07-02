@@ -610,8 +610,11 @@ footer a{color:var(--muted)}
 
 
 .modal-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-  width:100%;max-width:440px;max-height:85vh;overflow:auto;padding:1.1rem;
+  width:100%;max-width:min(380px, calc(100vw - 2rem));max-height:85vh;overflow:auto;padding:1.1rem;
   box-shadow:0 20px 50px -15px #000c}
+  }
+
+  
 .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem}
 .modal-head h3{margin:0;font-family:var(--serif);font-size:1.1rem;font-weight:600}
 .modal-x{border:1px solid var(--line);background:var(--bg);border-radius:8px;
@@ -4020,8 +4023,12 @@ function mostrarPartidaImportada(partida,tipo){
   state.busy=false;
   state.freemode=true; // Al ser importación externa, habilitamos exploración libre por defecto
   state.premove=null;
-  state.lastMove=ultimoMovimientoDe(partida);
-  state.orient=partida.turn();
+ state.lastMove=ultimoMovimientoDe(partida);
+  const jugadas=partida.history({verbose:true});
+  state.orient = jugadas.length ? jugadas[0].color : partida.turn();
+
+
+  
 
   $('exno').textContent=tipo;
 
@@ -4359,8 +4366,7 @@ $('b-export-fen').onclick=()=>{
 
 
 
-  descargarArchivo(state.game.fen()+'\n', 'LA-Ejercicio-'+curr().n+'.fen');
-
+ descargarArchivo(state.game.fen()+'\n', 'LA-Ejercicio-'+curr().n+'.txt');
 
 
   
