@@ -761,6 +761,7 @@ footer a{color:var(--muted)}
   
   
   <button class="btn" id="b-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/></svg>Compartir</button>
+  <button class="btn" id="b-sound" title="Sonido"><svg id="ico-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><svg id="ico-sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></button>   <!-- % NUEVO -->
 </div>
     
     
@@ -779,8 +780,10 @@ footer a{color:var(--muted)}
 
   <aside class="sidecol">
       
-    <div class="panel-card">
+   <div class="panel-card">
       <h3>Navegación</h3>
+      <button class="btn" id="b-random" style="width:100%;justify-content:center;margin-bottom:.6rem">🎲 Ejercicio aleatorio</button>   <!-- % NUEVO -->
+     
       
 
 
@@ -972,6 +975,33 @@ footer a{color:var(--muted)}
     </div>
   </div>
 </div>
+
+
+
+
+
+  
+
+
+  <!-- % NUEVO: ventana para elegir nivel del ejercicio aleatorio -->
+<div id="random-modal" class="confirm-bg">
+  <div class="confirm-box">
+    <p>Ejercicio aleatorio, ¿de qué nivel?</p>
+    <div style="display:flex;flex-direction:column;gap:.5rem">
+      <button class="btn" data-rl="F">Fácil</button>
+      <button class="btn" data-rl="I">Intermedio</button>
+      <button class="btn" data-rl="A">Avanzado</button>
+      <button class="btn primary" data-rl="all">Cualquiera (todos)</button>
+      <button class="btn" id="b-random-close" style="margin-top:.3rem;color:var(--muted)">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
 
 <!-- NUEVO: modal del regalo (dedicatoria) -->
 <div id="gift-modal" class="confirm-bg gift-bg">
@@ -3363,9 +3393,16 @@ function tryMove(from,to){
   const exp=state.uci[state.step];           // jugada esperada en UCI
   const expFrom=exp.slice(0,2), expTo=exp.slice(2,4), expProm=promoOf(exp);
   const ok = (from===expFrom && to===expTo);
+ 
+
+
+
   if(ok){
-    state.game.move({from,to,promotion:expProm||'q'});
+    const mvOk=state.game.move({from,to,promotion:expProm||'q'});   // % CAMBIO: guardo la jugada para saber si capturó
+    if(mvOk && mvOk.captured) sndCapture(); else sndMove();          // % NUEVO
     flash(to,'good'); state.step++; renderBoard(); renderMoves();
+
+    
     if(state.step>=state.uci.length){ onSolved(); return; }
     
     
@@ -3378,8 +3415,9 @@ function tryMove(from,to){
   // respuesta automática del rival
             state.busy=true; setStatus('ok','¡Correcto! El rival responde…');
             setTimeout(()=>{
-              const r=state.uci[state.step];
-              state.game.move({from:r.slice(0,2),to:r.slice(2,4),promotion:promoOf(r)||'q'});
+             const r=state.uci[state.step];
+              const mvR=state.game.move({from:r.slice(0,2),to:r.slice(2,4),promotion:promoOf(r)||'q'});   // % CAMBIO
+              if(mvR && mvR.captured) sndCapture(); else sndMove();   // % NUEVO
               flash(r.slice(2,4),'last'); state.step++; 
               state.busy=false; // Liberamos el estado antes de redibujar
               
@@ -3410,6 +3448,7 @@ function tryMove(from,to){
     
   }else{
     // incorrecto: avisar y rebobinar (no se ejecuta en el tablero)
+    sndError();   // % NUEVO
     flash(to,'bad'); const cf=cellOf(from); if(cf)cf.classList.add('bad');
     setTimeout(()=>{cf&&cf.classList.remove('bad');},420);
     setStatus('no','Esa no es la jugada principal. Inténtalo de nuevo.');
@@ -3419,6 +3458,7 @@ function tryMove(from,to){
 function flash(sq,cls){const c=cellOf(sq);if(!c)return;c.classList.add(cls);
   if(cls!=='last')setTimeout(()=>c.classList.remove(cls),420);}
 function onSolved(){
+  sndSolved();   // % NUEVO
   
   
   
@@ -4411,7 +4451,57 @@ document.addEventListener('keydown',e=>{
 
 
 
+/* % NUEVO: sonidos sintetizados (sin archivos) ---------- */
+let soundOn = localStorage.getItem('wp_sound')!=='0';   // recuerda la preferencia; por defecto activado
+let audioCtx=null;
+function beep(freq,dur,vol,tipo){
+  if(!soundOn) return;
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=tipo||'sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime+dur);
+  }catch(e){}
+}
+function sndMove(){ beep(420,.09,.25,'sine'); }                                  // jugada normal
+function sndCapture(){ beep(220,.11,.3,'square'); }                              // captura
+function sndError(){ beep(160,.18,.25,'sawtooth'); }                             // jugada incorrecta
+function sndSolved(){ beep(520,.1,.25,'sine'); setTimeout(()=>beep(780,.14,.25,'sine'),110); }  // resuelto
 
+$('b-sound').onclick=()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('wp_sound', soundOn?'1':'0');
+  $('ico-sound-on').style.display = soundOn?'block':'none';
+  $('ico-sound-off').style.display = soundOn?'none':'block';
+};
+// al cargar, reflejar la preferencia guardada en el ícono
+$('ico-sound-on').style.display = soundOn?'block':'none';
+$('ico-sound-off').style.display = soundOn?'none':'block';
+
+/* % NUEVO: ejercicio aleatorio ---------- */
+$('b-random').onclick=()=>{ $('random-modal').classList.add('open'); };
+$('random-modal').addEventListener('click',e=>{
+  if(e.target.id==='random-modal' || e.target.id==='b-random-close'){
+    $('random-modal').classList.remove('open'); return;   // cerrar tocando el fondo o Cancelar
+  }
+  const b=e.target.closest('button[data-rl]');
+  if(!b) return;
+  const nivel=b.dataset.rl;
+  $('random-modal').classList.remove('open');
+  const grupo = nivel==='all' ? PUZZLES : PUZZLES.filter(p=>p.lv===nivel);
+  const elegido = grupo[Math.floor(Math.random()*grupo.length)];
+  jumpToNumber(elegido.n);
+});
+
+
+
+
+
+
+  
 /* ---------- init ---------- */
 buildList();
 if(navigator.storage && navigator.storage.persist){ navigator.storage.persist(); }
