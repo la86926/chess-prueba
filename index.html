@@ -623,6 +623,12 @@ footer a{color:var(--muted)}
 .hist-empty{color:var(--muted2);font-size:.82rem}
 
 
+/* NUEVO: estilos para X */
+  .hist-x{border:0;background:transparent;color:var(--muted2);font-size:.8rem;
+  padding:.15rem .35rem;border-radius:6px;flex:0 0 auto}   /* % NUEVO */
+.hist-x:hover{color:var(--crest);background:#cf4d2e18}
+
+
 </style>
 </head>
 <body>
@@ -3642,7 +3648,7 @@ function renderHistorial(){
   
     const fecha=f.toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'})
               +' · '+f.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
-    html+='<div class="hist-row" data-n="'+n+'"><span class="hist-n">N.º '+n+'</span><span class="hist-d">'+fecha+'</span></div>';
+    html+='<div class="hist-row" data-n="'+n+'" data-t="'+e.t+'"><span class="hist-n">N.º '+n+'</span><span class="hist-d">'+fecha+'</span><button class="hist-x" data-del="'+e.t+'" title="Borrar del historial">✕</button></div>';   // % CAMBIO: agrego data-t y el botón ✕
   }
   // % NUEVO: botón para desplegar el resto + nota explicativa
   if(!state.histTodo && ns.length>20){
@@ -4306,8 +4312,14 @@ $('filein').onchange=e=>{
 
 
 
-$('b-clear').onclick=()=>{if(confirm('¿Borrar todo tu progreso guardado?')){solved.clear();saveSolved();solvedAt={};saveSolvedAt();lastStreak=0;renderProgress();}};  // CAMBIO: ahora también limpia las fechas
-
+$('b-clear').onclick=()=>{
+  pedirConfirmacion('¿Borrar todo tu progreso guardado?', ()=>{   // % CAMBIO: modal propio, no confirm()
+    solved.clear();saveSolved();
+    solvedAt={};saveSolvedAt();
+    histLog=[];saveHistLog();   // % NUEVO: sin esto el historial reaparecía
+    lastStreak=0;renderProgress();
+  });
+};
 
 
 
@@ -4367,10 +4379,10 @@ if(b.id==='b-hist-close'){
   }
   else if(b.id==='b-hist-recover'){
     let backup=null;
-    try{ const r=localStorage.getItem('wp_solved_at_backup'); backup=r?JSON.parse(r):null; }catch(err){}
+    try{ const r=localStorage.getItem('wp_hist_log_backup'); backup=r?JSON.parse(r):null; }catch(err){}   // % CAMBIO: recupera la lista nueva
     if(!backup || !Object.keys(backup).length){ setStatus('no','No hay ninguna copia de historial para recuperar.'); return; }
     pedirConfirmacion('¿Recuperar el historial desde la última copia guardada?', ()=>{
-      solvedAt=backup; saveSolvedAt(); renderHistorial();
+      histLog=backup; saveHistLog(); renderHistorial();   // % CAMBIO
     });
   }
 });
@@ -4401,6 +4413,13 @@ $('gift-modal').addEventListener('click',e=>{
 
 // NUEVO: tocar una fila del historial cierra la ventana y salta a ese ejercicio
 $('hist-list').onclick=e=>{
+  const x=e.target.closest('.hist-x');   // % NUEVO: si tocó la ✕, borro solo esa entrada
+  if(x){
+    const t=Number(x.dataset.del);
+    histLog=histLog.filter(en=>en.t!==t);
+    saveHistLog(); renderHistorial();
+    return;   // % importante: no saltar al ejercicio
+  }
   const fila=e.target.closest('.hist-row');
   if(fila){ $('hist-modal').classList.remove('open'); document.querySelector('.tab[data-v="train"]').click(); jumpToNumber(fila.dataset.n); }
 };
@@ -4466,10 +4485,30 @@ function beep(freq,dur,vol,tipo){
     o.start(); o.stop(audioCtx.currentTime+dur);
   }catch(e){}
 }
-function sndMove(){ beep(420,.09,.25,'sine'); }                                  // jugada normal
-function sndCapture(){ beep(220,.11,.3,'square'); }                              // captura
-function sndError(){ beep(160,.18,.25,'sawtooth'); }                             // jugada incorrecta
-function sndSolved(){ beep(520,.1,.25,'sine'); setTimeout(()=>beep(780,.14,.25,'sine'),110); }  // resuelto
+  
+// % NUEVO: "toc" de madera (golpe percusivo con caída rápida, estilo chess.com)
+function toc(freqIni,freqFin,dur,vol){
+  if(!soundOn) return;
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='triangle';
+    o.frequency.setValueAtTime(freqIni,t);
+    o.frequency.exponentialRampToValueAtTime(freqFin,t+dur);   // el tono cae: suena a golpe, no a nota
+    g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t+dur);
+  }catch(e){}
+}
+function sndMove(){ toc(340,120,.07,.5); }                                        // toc seco
+function sndCapture(){ toc(260,80,.09,.6); }                                      // toc más grave (captura)
+function sndError(){ toc(140,60,.13,.45); setTimeout(()=>toc(120,55,.13,.4),90);} // doble golpe grave
+function sndSolved(){ toc(400,200,.07,.45); setTimeout(()=>toc(600,300,.09,.45),100); } // dos tocs ascendentes
+
+
+  
 
 $('b-sound').onclick=()=>{
   soundOn=!soundOn;
