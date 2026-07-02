@@ -248,8 +248,16 @@ gap:1rem;
 .tab{border:0;background:transparent;color:var(--muted);padding:.4rem .8rem;
   border-radius:7px;font-size:.85rem;font-weight:500;transition:.15s}
 .tab:hover{color:var(--ink)}
-.tab.active{background:var(--panel2);color:var(--ink);box-shadow:0 1px 0 #0003}
 
+
+
+
+
+  .tab.active{background:var(--panel2);color:var(--ink);box-shadow:0 1px 0 #0003}
+/* % NUEVO: botones de la gráfica (mismo look que las pestañas, sin ser pestañas) */
+.gtab{border:0;background:transparent;color:var(--muted);padding:.4rem .8rem;
+  border-radius:7px;font-size:.85rem;font-weight:500;transition:.15s}
+.gtab.active{background:var(--panel2);color:var(--ink);box-shadow:0 1px 0 #0003}
 
 
 
@@ -646,6 +654,10 @@ footer a{color:var(--muted)}
 
 
 
+
+
+
+
   
 </style>
 </head>
@@ -961,7 +973,7 @@ footer a{color:var(--muted)}
 
 <footer>
   Material: <em>The Woodpecker Method (Método Pájaro Carpintero)</em> · Axel Smith &amp; Hans Tikkanen. Entrenador interactivo en español ·
-  motor de legalidad <a href="https://github.com/jhlywa/chess.js">chess.js</a>.
+  motor de legalidad <a href="https://github.com/jhlywa/chess.js">chess.js</a>. Sitio hecho por LA.
 </footer>
 
 
@@ -986,9 +998,9 @@ footer a{color:var(--muted)}
     <!-- % NUEVO: gráfica de actividad -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.9rem">
       <h3 style="margin:0;font-family:var(--serif);font-size:.95rem">Actividad</h3>
-      <div class="tabs" style="padding:2px">
-        <button class="tab active" id="g-sem">Semanas</button>
-        <button class="tab" id="g-dia">Días</button>
+     <div class="tabs" style="padding:2px">
+        <button class="gtab active" id="g-sem" type="button">Semanas</button>   <!-- % CAMBIO: clase gtab, ya no tab -->
+        <button class="gtab" id="g-dia" type="button">Días</button>
       </div>
     </div>
     <div id="grafica" style="display:flex;align-items:flex-end;gap:4px;height:90px;margin-top:.6rem"></div>
@@ -3916,8 +3928,20 @@ async function compartirLogro(){
     ctx.fillText(Math.round(solved.size/PUZZLES.length*100)+'% del libro · racha actual: '+lastStreak,W/2,760);
     ctx.fillStyle='#cf4d2e'; ctx.font='italic 42px Georgia';
     ctx.fillText('«Un error enseña más que cien victorias.»',W/2,900);
+
+
+
+    // % NUEVO: dentro del APK, guardo la tarjeta en la galería con el puente
+    if(window.PuenteAndroid && PuenteAndroid.guardarImagen){
+      const b64=cv.toDataURL('image/png').split(',')[1];
+      PuenteAndroid.guardarImagen(b64,'logro-woodpecker.png');
+      setStatus('ok','Tarjeta guardada en tu galería (Pictures/PCdeLuisA).');
+      return;
+    }
     const blob=await new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('sin blob')),'image/png'));
     const archivo=new File([blob],'logro-woodpecker.png',{type:'image/png'});
+
+    
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[archivo]}))){
       await navigator.share({files:[archivo],title:'Mi progreso',text:'Mi progreso en El Método Pájaro Carpintero ♟️'});
     }else{
