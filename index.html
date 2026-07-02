@@ -22,7 +22,22 @@
 /* NUEVA VARIABLE: Cambia este valor (0.7rem, 11px, 75%, etc.) para ajustar el tamaño fácilmente */
   --txt-amigo-size: 0.72rem;
 }
-*{box-sizing:border-box}
+
+
+
+
+
+*{box-sizing:border-box;
+  -webkit-user-select:none;   /* % NUEVO: nada de texto seleccionable */
+  user-select:none;           /* % NUEVO */
+  -webkit-touch-callout:none; /* % NUEVO: sin menú de "copiar" al mantener presionado (iPhone) */
+}
+html,body{touch-action:pan-x pan-y}  /* % NUEVO: permite scroll pero bloquea zoom por doble toque y pellizco */
+
+
+
+
+
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);
   -webkit-font-smoothing:antialiased;line-height:1.5;overflow-x:hidden}
@@ -766,10 +781,12 @@ footer a{color:var(--muted)}
       
     <div class="panel-card">
       <h3>Navegación</h3>
-      <div class="nav-row">
-        <button class="btn" id="b-prev">◂ Anterior</button>
-        <button class="btn" id="b-next">Siguiente ▸</button>
-      </div>
+      
+
+
+
+
+      
       <div class="jump">
         <input id="jump" inputmode="numeric" placeholder="N.º (1–1128)…">
         <button class="btn primary" id="b-go">Ir</button>
@@ -3000,7 +3017,21 @@ let state={ filter:'all', list:[], i:0, game:null, fen:'', uci:[], san:[], step:
 
 
 let solved=loadSolved();
-let solvedAt=loadSolvedAt();   // NUEVO: fechas de resolución {n: timestamp}
+
+
+
+  let solvedAt=loadSolvedAt();   // NUEVO: fechas de resolución {n: timestamp}
+let histLog=loadHistLog();     // % NUEVO: lista de resoluciones [{n, t}], admite repeticiones
+function loadHistLog(){
+  try{const r=localStorage.getItem('wp_hist_log');return r?JSON.parse(r):[];}
+  catch(e){return [];}
+}
+function saveHistLog(){
+  try{localStorage.setItem('wp_hist_log',JSON.stringify(histLog));}catch(e){}
+}
+
+
+  
 let lastStreak=0;
 
 
@@ -3393,7 +3424,8 @@ function onSolved(){
   
   const p=curr();
   if(!solved.has(p.n)){solved.add(p.n);saveSolved();}
-  if(!solvedAt[p.n]){ solvedAt[p.n]=Date.now(); saveSolvedAt(); }   // NUEVO: registro fecha/hora la primera vez
+  if(!solvedAt[p.n]){ solvedAt[p.n]=Date.now(); saveSolvedAt(); }
+  histLog.unshift({n:p.n, t:Date.now()}); saveHistLog();   // % NUEVO: cada resolución (aunque se repita) entra al registro
   lastStreak++;
 
 
@@ -3560,18 +3592,37 @@ function renderRef(p){
 /* ---------- historial ---------- */
 function renderHistorial(){
   const cont=$('hist-list'); if(!cont)return;
-  const ns=Object.keys(solvedAt).map(Number);
+  const ns=histLog;                                          // % CAMBIO: ahora leo la lista con repeticiones
   if(!ns.length){ cont.innerHTML='<span class="hist-empty">Aún no has resuelto ejercicios.</span>'; return; }
-  ns.sort((a,b)=>solvedAt[b]-solvedAt[a]);   // más reciente arriba
+  const visibles = state.histTodo ? ns : ns.slice(0,20);     // % (ya viene ordenada: unshift pone lo nuevo arriba)
   let html='';
-  for(const n of ns){
-    const f=new Date(solvedAt[n]);
+  for(const e of visibles){                                  // % CAMBIO: cada entrada es {n, t}
+    const n=e.n;                                             // % NUEVO
+    const f=new Date(e.t);                                   // % CAMBIO: era solvedAt[n]
+  
     const fecha=f.toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'})
               +' · '+f.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
     html+='<div class="hist-row" data-n="'+n+'"><span class="hist-n">N.º '+n+'</span><span class="hist-d">'+fecha+'</span></div>';
   }
+  // % NUEVO: botón para desplegar el resto + nota explicativa
+  if(!state.histTodo && ns.length>20){
+    html+='<button class="btn" id="b-hist-todo" style="justify-content:center;margin-top:.3rem">Mostrar todas ('+ns.length+')</button>';
+    html+='<span class="hist-empty" style="text-align:center;padding:.2rem 0">Se muestran las 20 más recientes para mantener la ventana ágil. Tu historial completo está guardado.</span>';
+  }
   cont.innerHTML=html;
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* ---------- progreso ---------- */
 function renderProgress(){
@@ -3623,8 +3674,6 @@ function holdRepeat(btn, fn){
   });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,parar));
 }
-$('b-prev').onclick = ()=>go(-1);   // % CAMBIO: clic simple, sin repetición sostenida
-$('b-next').onclick = ()=>go(1);    // % CAMBIO
 
 
 
@@ -4251,13 +4300,29 @@ $('hist-modal').addEventListener('click', e=>{
   const b=e.target.closest('button');   // detecto qué botón se tocó (aunque toque el ícono dentro)
   if(!b) return;
 
-  if(b.id==='b-hist-close'){
+
+
+
+if(b.id==='b-hist-close'){
     $('hist-modal').classList.remove('open');
+    state.histTodo=false;   // % NUEVO: al cerrar, vuelve al modo compacto de 20
   }
+  else if(b.id==='b-hist-todo'){   // % NUEVO: despliega el historial completo
+    state.histTodo=true;
+    renderHistorial();
+  }
+  
+  
+  
+  
+  
   else if(b.id==='b-hist-reset'){
     pedirConfirmacion('¿Resetear el historial de fechas? Tu conteo de resueltos se mantiene.', ()=>{
       try{ localStorage.setItem('wp_solved_at_backup', JSON.stringify(solvedAt)); }catch(err){}
-      solvedAt={}; saveSolvedAt(); renderHistorial();
+      try{ localStorage.setItem('wp_hist_log_backup', JSON.stringify(histLog)); }catch(err){}   // % NUEVO: copia de seguridad
+      solvedAt={}; saveSolvedAt(); histLog=[]; saveHistLog(); renderHistorial();               // % CAMBIO: limpia ambos
+
+      
     });
   }
   else if(b.id==='b-hist-recover'){
@@ -4349,7 +4414,15 @@ document.addEventListener('keydown',e=>{
 
 /* ---------- init ---------- */
 buildList();
-if(navigator.storage && navigator.storage.persist){ navigator.storage.persist(); }   // % NUEVO: pide al navegador NO borrar los datos automáticamente
+if(navigator.storage && navigator.storage.persist){ navigator.storage.persist(); }
+// % NUEVO: bloqueo total de zoom por gestos (Safari/iOS ignora el meta viewport)
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+
+
+
+
+
 $('c-all').textContent = PUZZLES.length;
 load(curr());
 renderProgress();
