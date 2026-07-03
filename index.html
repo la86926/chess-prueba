@@ -429,7 +429,11 @@ gap:1rem;
 .moves .ply.now{background:var(--gold);color:#1b211e;font-weight:700}
 .moves .num{color:var(--muted2);margin-right:.15rem}
 .moves .hidden{color:var(--muted2);opacity:.45}
+.fig{display:inline-block;width:1.05em;height:1.05em;vertical-align:-0.18em}
+.fig svg{width:100%;height:100%;display:block}
 
+
+  
 /* ---------- Side panel ---------- */
 .panel-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:1rem;margin-bottom:1rem}
@@ -650,11 +654,14 @@ footer a{color:var(--muted)}
 
 
   /* Insignia de mate sobre el rey */
-.mate-badge{position:absolute;top:2%;right:2%;width:34%;height:34%;
-  background:var(--crest);border-radius:50%;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 2px 6px #000a;z-index:5;pointer-events:none}
-.mate-badge span{color:#fff;font-size:1.05rem;line-height:1;
-  transform:rotate(90deg);display:block}
+.mate-badge{position:absolute;top:2%;right:2%;width:32%;height:32%;
+  background:#f8a5c2;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px #0008, inset 0 0 0 1.5px #ffffffcc;z-index:5;pointer-events:none}
+.mate-badge svg{width:62%;height:62%;stroke:#7d1f4d;fill:none;stroke-width:3;
+  stroke-linecap:round;stroke-linejoin:round}
+
+
+  
 
 
 
@@ -3233,6 +3240,7 @@ function load(p){
   
   state.step=0; state.sel=null; state.busy=false; state.orient = p.o; state.freemode = (p.v===0); state.premove = null; state.lastMove = null;
   state.anaMoves=null; state.anaPtr=0;   // NUEVO: reinicio el navegador de jugadas
+  state.viewBack=false; state.liveMoves=null;
   
   
   
@@ -3350,7 +3358,7 @@ function showDests(sq){
 
 
 /* ---------- interacción: selección + arrastre ---------- */
-function myTurn(){return !state.busy && state.step%2===0;}
+function myTurn(){return !state.busy && !state.viewBack && state.step%2===0;}
 function canSelect(sq){
   const pc=state.game.get(sq);
   return pc && pc.color===state.game.turn();
@@ -3674,10 +3682,9 @@ function setStatus(kind,msg){
 
 
 /* ---------- lista de jugadas ---------- */
-// Convierte letras inglesas en figuritas estilo lichess (glifos sólidos, forzados como texto)
+// Convierte letras inglesas en mini-piezas SVG (mismas del tablero; sin emojis de sistema)
 function figurina(san){
-  const f={K:'\u265A\uFE0E',Q:'\u265B\uFE0E',R:'\u265C\uFE0E',B:'\u265D\uFE0E',N:'\u265E\uFE0E'};
-  return san.replace(/[KQRBN]/g,m=>f[m]);
+  return san.replace(/[KQRBN]/g,m=>'<span class="fig">'+PIECES['w'+m]+'</span>');
 }
   
 function renderMoves(){
@@ -3689,7 +3696,7 @@ function renderMoves(){
       const m=state.anaMoves[k];
       if(m.color==='w'){ html+='<span class="num">'+num+'.</span>'; num++; }
       else if(k===0){ html+='<span class="num">1...</span>'; num=2; }
-      html+='<span class="ply u'+(k===state.anaPtr-1?' now':'')+'">'+figurina(m.san)+'</span> ';
+      html+='<span class="ply u'+(k===state.anaPtr-1?' now':'')+'" data-k="'+k+'">'+figurina(m.san)+'</span> ';
     }
     ml.innerHTML=html; return;
   }
@@ -3710,7 +3717,7 @@ function renderMoves(){
     
     
    const txt = shown? figurina(state.san[k]) : '···';
-    html+='<span class="'+cls+'">'+txt+'</span> ';
+    html+='<span class="'+cls+'"'+(shown?' data-k="'+k+'"':'')+'>'+txt+'</span> ';
   }
   ml.innerHTML=html;
 }
@@ -3929,7 +3936,7 @@ function marcarReyMate(){
       if(celda && !celda.querySelector('.mate-badge')){
         const ins=document.createElement('span');
         ins.className='mate-badge';
-        ins.innerHTML='<span>\u265A\uFE0E</span>';
+        ins.innerHTML='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
         celda.appendChild(ins);
       }
     }
@@ -3996,8 +4003,33 @@ function irAJugada(ptr){
   marcarReyMate();
 }
 
+// Clic en la notación: salta a esa jugada
+$('movelist').addEventListener('click',e=>{
+  const p=e.target.closest('.ply[data-k]'); if(!p)return;
+  const ptr=Number(p.dataset.k)+1;
+  if(state.freemode){ irAJugada(ptr); return; }
+  verJugadaLive(ptr);
+});
+
+// En ejercicio en vivo: retrocede solo para VER; se reanuda al tocar la última jugada
+function verJugadaLive(ptr){
+  if(state.busy)return;
+  if(!state.liveMoves) state.liveMoves=state.game.history({verbose:true});
+  const total=state.liveMoves.length;
+  ptr=Math.max(0,Math.min(ptr,total));
+  state.game=new Chess(state.fen);
+  for(let i=0;i<ptr;i++){const m=state.liveMoves[i];state.game.move({from:m.from,to:m.to,promotion:m.promotion||'q'});}
+  state.viewBack=(ptr<total);
+  state.sel=null;
+  renderBoard();
+  if(state.viewBack){ setStatus('idle','Viendo una jugada anterior. Toca la última jugada de la lista para continuar el ejercicio.'); }
+  else { state.liveMoves=null; setStatus('idle','De vuelta en la posición actual. Continúa la línea.'); }
+}
+
 // NUEVO: los 4 botones |◂ ◂ ▸ ▸|
 $('b-ana-first').onclick=()=>irAJugada(0);
+
+  
 $('b-ana-prev').onclick =()=>irAJugada(state.anaPtr-1);
 $('b-ana-next').onclick =()=>irAJugada(state.anaPtr+1);
 $('b-ana-last').onclick =()=>irAJugada(state.anaMoves?state.anaMoves.length:0);
