@@ -773,7 +773,7 @@ footer a{color:var(--muted)}
    <!-- NUEVO: Reiniciar / Ant / Sig debajo del tablero, cerca de la mano -->
     <div style="display:flex; gap:.5rem; width:100%; max-width:560px; margin:.7rem auto 0;">
       <button class="btn" id="b-reset" style="flex:1; justify-content:center; padding:.6rem .4rem; font-size:0.95rem; font-weight:600;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>Reiniciar</button>
-      <button class="btn" id="b-edit" style="flex:1; justify-content:center; padding:.6rem .4rem; font-size:0.95rem; font-weight:600;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Editar</button>
+      <button class="btn" id="b-edit" style="flex:1; justify-content:center; padding:.6rem .4rem; font-size:0.95rem; font-weight:600;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Editar v4</button>
       <button class="btn" id="b-prev-top" style="flex:1; justify-content:center; padding:.6rem .4rem; font-size:0.95rem; font-weight:600;">◂ Ant</button>
       
       <button class="btn" id="b-next-top" style="flex:1; justify-content:center; padding:.6rem .4rem; font-size:0.95rem; font-weight:600;">Sig ▸</button>
@@ -801,7 +801,32 @@ footer a{color:var(--muted)}
       <button class="btn" id="b-ana-last"  style="flex:1; justify-content:center; padding:.85rem .4rem;" title="Ir al final"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5v14M8 12l8 7V5z"/></svg></button>
     </div>
 
+    
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Panel del motor Stockfish (aparece en modo libre) -->
+    <div id="engine-box" style="display:none;max-width:620px;margin:.7rem auto 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem">
+        <b id="eng-eval" style="font-family:var(--mono);font-size:1rem">—</b>
+        <button class="btn" id="b-engine" style="padding:.35rem .6rem;font-size:.78rem">Activar motor</button>
+      </div>
+      <div id="eng-line" style="margin-top:.35rem;color:var(--muted);font-family:var(--mono);font-size:.8rem;line-height:1.8">Stockfish apagado.</div>
+    </div>
+
     <div class="status" id="status"><span class="ico">♟</span><span id="statustext">Encuentra la mejor jugada.</span></div>
+
+
+
+    
     
     
     
@@ -3308,10 +3333,17 @@ function renderBoard(){
  paintLast();
   animarUltimaJugada();   // NUEVO: desliza la pieza recién movida
 
-   if (state.premove) {
+ 
+
+
+
+
+  if (state.premove) {
     dibujarPremoveVisual(state.premove.from, state.premove.to);
   }
+  if(state.freemode) analizarPosicion();
 }
+  
 
 
 
@@ -3967,19 +3999,32 @@ function avisarSiMate(){
   
 // Botón Editar: entra en modo de exploración libre a mitad del ejercicio
 $('b-edit').onclick=()=>{
-  if(state.freemode){
-    setStatus('free','Ya estás en modo libre. Pulsa Reiniciar para volver al ejercicio.');
-    return;
+  if(!state.freemode){
+    state.freemode=true;
+    state.busy=false;
+    state.premove=null;
+    state.sel=null;
+    state.anaMoves=state.game.history({verbose:true});
+    state.anaPtr=state.anaMoves.length;
   }
-  state.freemode=true;
-  state.busy=false;
-  state.premove=null;
-  state.sel=null;
-  state.anaMoves=state.game.history({verbose:true});
-  state.anaPtr=state.anaMoves.length;
+
   mostrarBarraAnalisis(true);
   renderBoard();
-  setStatus('free','Modo edición: mueve las piezas con libertad. Pulsa Reiniciar para volver al ejercicio.');
+
+  if(!motorOn){
+    if(!motor && !iniciarMotor()){
+      $('eng-line').textContent='No se pudo iniciar Stockfish.';
+      return;
+    }
+
+    motorOn=true;
+    $('b-engine').textContent='Apagar motor';
+  }
+
+  $('eng-line').textContent='Analizando posición…';
+  analizarPosicion();
+
+  setStatus('free','Motor activo: la flecha dorada indica la mejor jugada.');
 };
 
 
@@ -4122,7 +4167,12 @@ async function compartirLogro(){
     gr.addColorStop(0,'#2c352f'); gr.addColorStop(1,'#1b211e');
     ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
     // marco dorado
-    ctx.strokeStyle='#d9a441'; ctx.lineWidth=6; ctx.strokeRect(40,40,W-80,H-80);
+    
+    ctx.strokeStyle='rgba(217,164,65,.32)';
+ctx.fillStyle='rgba(217,164,65,.32)';
+ctx.lineWidth=Math.max(4, size*0.09);
+
+const headLen=Math.max(5, size*0.18);
     // contenido
     ctx.textAlign='center';
     ctx.font='120px serif'; ctx.fillText('🏆',W/2,260);
@@ -5083,10 +5133,191 @@ function limpiarPremoveVisual() {
   });
 }
 
-// NUEVO: muestra u oculta la barra de análisis (botón Deshacer)
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // NUEVO: muestra u oculta la barra de análisis (botón Deshacer)
 function mostrarBarraAnalisis(visible){
   $('analysis-bar').style.display = visible ? 'flex' : 'none';
+  $('engine-box').style.display = visible ? 'block' : 'none';
 }
+
+
+
+  
+
+/* Motor Stockfish (se carga solo cuando el usuario lo activa) */
+let motor=null, motorOn=false, fenAnalizado='';
+
+  
+  
+  
+  
+
+
+
+
+
+
+  function iniciarMotor(){
+  try{
+    motor=new Worker('./stockfish-18-lite-single.js');
+
+    motor.onmessage=e=>leerMotor(String(e.data));
+
+    motor.onerror=()=>{
+      motorOn=false;
+      motor=null;
+      $('b-engine').textContent='Activar motor';
+      $('eng-eval').textContent='—';
+      $('eng-line').textContent=
+        'No se pudo cargar Stockfish. Verifica que stockfish-18-lite-single.js esté junto al archivo HTML.';
+    };
+
+    motor.postMessage('uci');
+    return true;
+
+  }catch(err){
+    motor=null;
+    return false;
+  }
+}
+
+
+
+  
+
+
+
+
+  
+function analizarPosicion(){
+  if(!motorOn || !motor) return;
+  fenAnalizado=state.game.fen();
+  motor.postMessage('stop');
+  motor.postMessage('position fen '+fenAnalizado);
+  
+
+  motor.postMessage('go movetime 400');
+
+  
+}
+
+
+
+  
+function leerMotor(txt){
+  if(txt.startsWith('bestmove ')){
+    const uci=txt.trim().split(/\s+/)[1];
+
+    if(uci && uci!=='(none)'){
+      dibujarFlechaMotor(uci);
+    }
+
+    return;
+  }
+
+  if(txt.indexOf('info')!==0 || txt.indexOf(' pv ')<0) return;
+
+
+
+
+
+  
+  const mS=txt.match(/score (cp|mate) (-?\d+)/);
+  const mD=txt.match(/depth (\d+)/);
+  const mP=txt.match(/ pv (.+)$/);
+  if(!mS || !mP) return;
+  const blancasMueven=fenAnalizado.split(' ')[1]==='w';
+  let evalTxt='';
+  if(mS[1]==='cp'){
+    let v=parseInt(mS[2],10)/100; if(!blancasMueven) v=-v;
+    evalTxt=(v>0?'+':'')+v.toFixed(2);
+  }else{
+    let n=parseInt(mS[2],10); if(!blancasMueven) n=-n;
+    evalTxt=(n>0?'+M':'-M')+Math.abs(n);
+  }
+  $('eng-eval').textContent=evalTxt+(mD?'  ·  prof. '+mD[1]:'');
+  const t=new Chess(fenAnalizado);
+  const sans=[];
+  for(const u of mP[1].split(' ').slice(0,6)){
+    const mv=t.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});
+    if(!mv) break;
+    sans.push(mv.san);
+  }
+  
+
+
+
+
+
+  $('eng-line').innerHTML='Mejor línea: '+sans.map(s=>figurina(s)).join(' ');
+  dibujarFlechaMotor(mP[1].split(' ')[0]);
+}
+
+
+
+
+  
+// Flecha dorada del motor: señala la mejor jugada sobre el tablero
+function dibujarFlechaMotor(uci){
+  const vieja=boardEl.querySelector('.eng-arrow');
+  if(vieja) vieja.remove();
+  if(!uci || !state.freemode || !motorOn) return;
+  const pos=sq=>{
+    const f='abcdefgh'.indexOf(sq[0]), r=Number(sq[1]);
+    return state.orient==='w' ? {x:f+.5, y:8-r+.5} : {x:7-f+.5, y:r-1+.5};
+  };
+  const a=pos(uci.slice(0,2)), b=pos(uci.slice(2,4));
+  const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+  if(!len) return;
+  const x2=b.x-(dx/len)*0.35, y2=b.y-(dy/len)*0.35;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 8 8');
+  svg.setAttribute('class','eng-arrow');
+  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6';
+  svg.innerHTML='<defs><marker id="engHead" markerWidth="4" markerHeight="4" refX="2.05" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="#d9a441"/></marker></defs>'
+    +'<line x1="'+a.x+'" y1="'+a.y+'" x2="'+x2+'" y2="'+y2+'" stroke="#d9a441" stroke-width="0.28" stroke-linecap="round" opacity="0.8" marker-end="url(#engHead)"/>';
+  boardEl.appendChild(svg);
+}
+
+$('b-engine').onclick=()=>{
+
+
+
+
+  
+  if(!motorOn){
+    if(!motor && !iniciarMotor()){ $('eng-line').textContent='El motor no está disponible en este entorno.'; return; }
+    motorOn=true;
+    $('b-engine').textContent='Apagar motor';
+    $('eng-line').textContent='Cargando y analizando…';
+    analizarPosicion();
+  }else{
+   motorOn=false;
+    if(motor) motor.postMessage('stop');
+    const fl=boardEl.querySelector('.eng-arrow'); if(fl) fl.remove();
+    $('b-engine').textContent='Activar motor';
+    $('eng-eval').textContent='—';
+    $('eng-line').textContent='Stockfish apagado.';
+  }
+};
+
+
+
+
+
+  
 
 // NUEVO: desliza la pieza de la última jugada desde su origen hasta el destino
 function animarUltimaJugada(){
